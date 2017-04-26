@@ -33,13 +33,21 @@ import javax.persistence.EntityManager;
 import javax.persistence.NoResultException;
 import javax.persistence.Query;
 import javax.persistence.TypedQuery;
+import javax.persistence.EntityManager;
+import javax.persistence.Query;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+
+import static org.keycloak.JPAConstants.ORACLE_IN_LIMIT;
 
 /**
  * @author <a href="mailto:psilva@redhat.com">Pedro Igor</a>
  */
 public class JPAResourceServerStore implements ResourceServerStore {
+
 
     private final EntityManager entityManager;
     private final AuthorizationProvider provider;
@@ -128,5 +136,23 @@ public class JPAResourceServerStore implements ResourceServerStore {
         } catch (NoResultException ex) {
             return null;
         }
+    }
+
+    @Override
+    public List<ResourceServer> findByClients(String... clientIds) {
+        Query query = entityManager.createNamedQuery("findByClients", ResourceServer.class);
+        List<ResourceServer> results = new ArrayList<>(clientIds.length);
+        List<String> ids = Arrays.asList(clientIds);
+        int limit;
+        while (!ids.isEmpty()) {
+            limit = ids.size();
+            if (limit > ORACLE_IN_LIMIT) {
+                limit = ORACLE_IN_LIMIT;
+            }
+            query.setParameter("clientIds", ids.subList(0, limit));
+            results.addAll(query.getResultList());
+            ids = ids.subList(limit, ids.size());
+        }
+        return results;
     }
 }

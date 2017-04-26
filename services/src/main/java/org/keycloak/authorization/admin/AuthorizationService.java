@@ -40,10 +40,17 @@ public class AuthorizationService {
     private final AdminEventBuilder adminEvent;
 
     public AuthorizationService(KeycloakSession session, ClientModel client, AdminPermissionEvaluator auth, AdminEventBuilder adminEvent) {
+        this(session, client, auth, adminEvent,
+                session.getProvider(AuthorizationProvider.class).getStoreFactory().getResourceServerStore().findByClient(client.getId()));
+
+    }
+
+    public AuthorizationService(KeycloakSession session, ClientModel client, AdminPermissionEvaluator auth, AdminEventBuilder adminEvent, ResourceServer resourceServer) {
+        this.session = session;
         this.client = client;
         this.authorization = session.getProvider(AuthorizationProvider.class);
         this.adminEvent = adminEvent;
-        this.resourceServer = this.authorization.getStoreFactory().getResourceServerStore().findByClient(this.client.getId());
+        this.resourceServer = resourceServer;
         this.auth = auth;
     }
 

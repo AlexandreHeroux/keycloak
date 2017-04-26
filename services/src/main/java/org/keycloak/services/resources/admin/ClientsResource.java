@@ -21,7 +21,9 @@ import static java.lang.Boolean.TRUE;
 import org.jboss.logging.Logger;
 import org.jboss.resteasy.annotations.cache.NoCache;
 import org.jboss.resteasy.spi.ResteasyProviderFactory;
+import org.keycloak.authorization.AuthorizationProvider;
 import org.keycloak.authorization.admin.AuthorizationService;
+import org.keycloak.authorization.model.ResourceServer;
 import org.keycloak.common.Profile;
 import org.keycloak.events.admin.OperationType;
 import org.keycloak.events.admin.ResourceType;
@@ -58,9 +60,11 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriInfo;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
-
+import java.util.stream.Collectors;
 /**
  * Base resource class for managing a realm's clients.
  *
@@ -97,17 +101,28 @@ public class ClientsResource {
     @NoCache
     public List<ClientRepresentation> getClients(@QueryParam("clientId") String clientId, @QueryParam("viewableOnly") @DefaultValue("false") boolean viewableOnly) {
         List<ClientRepresentation> rep = new ArrayList<>();
+        Map<String, ResourceServer> resourceServerMap = Collections.emptyMap();
 
         if (clientId == null) {
             List<ClientModel> clientModels = realm.getClients();
             auth.clients().requireList();
             boolean view = auth.clients().canView();
+
+            //Load all ResourceServer in one call
+            if (view && Profile.isFeatureEnabled(Profile.Feature.AUTHORIZATION) && !clientModels.isEmpty()) {
+                resourceServerMap = session.getProvider(AuthorizationProvider.class).getStoreFactory().getResourceServerStore()
+                        .findByClients(clientModels.stream().map(m -> m.getId()).toArray(String[]::new)).stream()
+                        .collect(Collectors.toMap(r -> r.getClientId(), r -> r));
+
+            }
+
             for (ClientModel clientModel : clientModels) {
                 if (view || auth.clients().canView(clientModel)) {
                     ClientRepresentation representation = ModelToRepresentation.toRepresentation(clientModel);
 
                     if (Profile.isFeatureEnabled(Profile.Feature.AUTHORIZATION)) {
-                        AuthorizationService authorizationService = getAuthorizationService(clientModel);
+                        AuthorizationService authorizationService = getAuthorizationService(clientModel,
+                                resourceServerMap.get(clientModel.getId()));
 
                         if (authorizationService.isEnabled()) {
                             representation.setAuthorizationServicesEnabled(true);
@@ -144,6 +159,10 @@ public class ClientsResource {
             }
         }
         return rep;
+    }
+
+    private AuthorizationService getAuthorizationService(ClientModel clientModel, ResourceServer resourceServer) {
+        return new AuthorizationService(session, clientModel, auth, adminEvent, resourceServer);
     }
 
     private AuthorizationService getAuthorizationService(ClientModel clientModel) {

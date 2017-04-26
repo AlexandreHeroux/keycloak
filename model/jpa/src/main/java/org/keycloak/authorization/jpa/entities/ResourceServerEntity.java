@@ -41,6 +41,7 @@ import java.util.List;
 @NamedQueries(
         {
                 @NamedQuery(name="findResourceServerIdByClient", query="select r.id from ResourceServerEntity r where r.clientId = :clientId"),
+                @NamedQuery(name="findByClients", query="select c from ResourceServerEntity c where c.clientId in (:clientIds)"),
         }
 )
 public class ResourceServerEntity {
